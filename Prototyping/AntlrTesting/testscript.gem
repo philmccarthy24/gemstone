@@ -1,20 +1,20 @@
 ﻿// quick test program
 
-elsetest = true;
-myVar = null;
-feedRate = 0;
-y = 5;
+$elsetest = true;
+$myVar = null;
+$feedRate = 0;
+$y = 5;
 
-if (!elsetest)
+if (!$elsetest)
 {
-	y++;
-	G1 X -4.3 Y y Z 9.83 F feedRate; // how to make antlr cope with param and value together without space?
+	$y++;
+	G1X-4.3Y($y)Z9.83 F($feedRate);
 }
 
-if (myVar >= 58.234) {
-	x = 28.9;
+if ($myVar >= 58.234) {
+	$x = 28.9;
 } else {
-	feedRate--;
+	$feedRate--;
 }
 
 /*

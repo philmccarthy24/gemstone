@@ -13,12 +13,12 @@ statementList
     ;
 
 statement
-    : block
+    : gcode
+	| block
 	| comment
     | emptyStatement
     | expressionStatement
     | ifStatement
-	| gcode
     ;
 
 comment
@@ -32,7 +32,7 @@ gcode
 
 gcodeParamExpr
 	: GCodeParam DecimalLiteral
-	| GCodeParam Identifier
+	| GCodeParam '(' Identifier ')'
 	;
 
 block
@@ -132,6 +132,9 @@ Lexer rules
 /// Line Terminators
 LineTerminator:                 [\r\n] -> channel(HIDDEN);
 
+GCodeParam:						[A-Z];
+GCodeId:						[GMT] [0-9]+;
+
 OpenBracket:                    '[';
 CloseBracket:                   ']';
 OpenParen:                      '(';
@@ -166,9 +169,6 @@ DivideAssign:                   '/=';
 ModulusAssign:                  '%=';
 PlusAssign:                     '+=';
 MinusAssign:                    '-=';
-
-GCodeParam:						[A-Z];
-GCodeId:						[GMT] [0-9]+;
 
 /// Null Literals
 
@@ -270,12 +270,11 @@ fragment ExponentPart
     ;
 
 fragment IdentifierStart
-    : [a-zA-Z]
-    | [$_]
+    : [$]
     ;
 
 fragment IdentifierPart
-    : IdentifierStart
+    : [a-zA-Z_]
     | [0-9]
     ;
 

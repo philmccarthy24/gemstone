@@ -12,7 +12,7 @@ namespace AntlrTesting
     // Note it would be a lot better if the visitor methods has responsibility for rendering the
     // corresponding AST node's subtree in the target representation, and returned string output
     // rather than using a class member StringBuilder. Otherwise get repetition of variable check logic etc.
-    // This is an artifact of me learning how to use this system...
+    // This is an artifact of me learning how to use AnTLR...
     class FanucTargetVisitor : GemGrammarBaseVisitor<string>
     {
         public StringBuilder Output { get; set; } = new StringBuilder();
@@ -214,6 +214,7 @@ namespace AntlrTesting
                 }
                 else
                 {
+                    // get the #var for the identifier passed in
                     Output.Append(gcodeParam.GCodeParam().GetText());
                     var identifier = gcodeParam.Identifier().GetText();
                     if (!_varTable.ContainsKey(identifier))
