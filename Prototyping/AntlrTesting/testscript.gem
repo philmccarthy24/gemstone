@@ -1,0 +1,27 @@
+﻿// quick test program
+
+elsetest = true;
+myVar = null;
+feedRate = 0;
+y = 5;
+
+if (!elsetest)
+{
+	y++;
+	G1 X -4.3 Y y Z 9.83 F feedRate; // how to make antlr cope with param and value together without space?
+}
+
+if (myVar >= 58.234) {
+	x = 28.9;
+} else {
+	feedRate--;
+}
+
+/*
+future features of gemstone:
+- G65 subprog call standardisation (ie on Siemens do param to R variable mapping, then call subprog.)
+- define vars used in subprogram, eg subprogram ProbeOnOff|9450(mode:=M, approachPt:=[X,Y,Z]): ... 
+	this aliases mode and approachPt.X etc to the correct var
+- 3d points are built-in structures? how to do arithmetic? WCSes?
+- block mapping. I guess this is like structs.
+*/
