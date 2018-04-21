@@ -19,6 +19,7 @@ fragment DIGIT: [0-9] ;
 INTEGER: DIGIT+ ;
 DECIMAL: DIGIT+ ('.' DIGIT*)? ; // negative decimals handled in parser rules
 
+
 // need to suport System Variables (constant string beginning with '_'
 // followed by up to seven uppercase letters, numerics or underscores),
 // some of which are array-ish supporting "var [ expr ]" type syntax.
@@ -36,7 +37,7 @@ DECIMAL: DIGIT+ ('.' DIGIT*)? ; // negative decimals handled in parser rules
 
 // #3000 (alarm) can also be refd as [#_ALM] = 3000 (ALARM MSG);
 
-SYSTEMVAR_CONST_OR_COMMONVAR_IDENTIFIER: {_input.La(-1) == '#'}? ~[0-9] [A-Za-z0-9_]+; 
+SYSTEMVAR_CONST_OR_COMMONVAR_IDENTIFIER: {_input.La(-1) == '#'}? ~[0-9[\]] [A-Za-z0-9_]*; 
 // actually more chars could be allowed for a common var - this is more restrictive
 // than it needs to be. 
 
@@ -119,6 +120,8 @@ WS : ' ' -> skip;
 EOB : '\n' -> channel(HIDDEN);
 
 CTRL_OUT: '(' -> pushMode(ControlIn);
+
+UNRECOGNISED_TEXT: .+?;
 
 mode ControlIn;
 
