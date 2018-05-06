@@ -13,13 +13,15 @@ namespace VSGCodeLangSupport
     [Export(typeof(IVsTextViewCreationListener))]
     [ContentType("FanucGCode")]
     [TextViewRole(PredefinedTextViewRoles.Interactive)]
-    internal sealed class PkgdefTextViewCreationListener : IVsTextViewCreationListener
+    internal sealed class GCodeTextViewCreationListener : IVsTextViewCreationListener
     {
         [Import]
         IVsEditorAdaptersFactoryService AdaptersFactory = null;
 
+        /*
         [Import]
         ICompletionBroker CompletionBroker = null;
+        */
 
         [Import]
         internal SVsServiceProvider ServiceProvider = null;
