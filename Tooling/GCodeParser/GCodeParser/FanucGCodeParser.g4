@@ -3,7 +3,9 @@ parser grammar FanucGCodeParser;
 options { tokenVocab=FanucGCodeLexer; }
 
 // Is the program number optional for top level programs?
-program: START_END_PROGRAM EOB programNumber block+ START_END_PROGRAM;
+program: START_END_PROGRAM EOB programNumber programContent START_END_PROGRAM;
+
+programContent: block+;
 
 programNumber: PROGRAM_NUMBER_PREFIX INTEGER comment? EOB;
 
@@ -14,14 +16,14 @@ gcode: GCODE_PREFIX expr;
 
 comment: CTRL_OUT CTRL_OUT_TEXT CTRL_IN;
 
+block: sequenceNumber blockContent? EOB
+	 | blockContent? EOB;
+
 // according to p.491, comments can be in front of seq num (or at beginning of block if sn not specified) or at end of block
 blockContent: (statement | expr)
 			| comment (statement | expr)
 			| (statement | expr) comment
 			;
-
-block: sequenceNumber blockContent? EOB
-	 | blockContent EOB;
 
 statement: gcode+
 		 | if
