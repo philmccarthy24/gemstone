@@ -44,7 +44,7 @@ namespace GCodeParser
         ProgramNumberPrefix = FanucGCodeLexer.PROGRAM_NUMBER_PREFIX,
         LabelPrefix = FanucGCodeLexer.SEQUENCE_NUMBER_PREFIX,
         GCodePrefix = FanucGCodeLexer.GCODE_PREFIX,
-        EndOfBlock = FanucGCodeLexer.EOB,
+        EndOfBlock = FanucGCodeLexer.NEWLINE,
         CommentStart = FanucGCodeLexer.CTRL_OUT,
         CommentText = FanucGCodeLexer.CTRL_OUT_TEXT,
         CommentEnd = FanucGCodeLexer.CTRL_IN,
@@ -63,6 +63,11 @@ namespace GCodeParser
         public FanucGCodeTextSpan OffendingSymbol { get; set; }
         public int Line { get; set; }
         public string Message { get; set; }
+
+        public override string ToString()
+        {
+            return $"Error: Line {Line}, Col {OffendingSymbol.StartPos}. {Message}";
+        }
     }
 
     // scanner for input sequences. uses the fanuc lexer
@@ -100,7 +105,7 @@ namespace GCodeParser
 
             _parseErrors = new List<FanucGCodeParseError>();
 
-            //fanucParser.RemoveErrorListeners();
+            fanucParser.RemoveErrorListeners();
             fanucParser.AddErrorListener(this);
 
             if (programContext)
@@ -111,6 +116,9 @@ namespace GCodeParser
             else
             {
                 var blocksContext = fanucParser.programContent();
+
+                Debug.WriteLine($"Checking syntax of '{gcodeContent.Trim()}'");
+                Debug.WriteLine($"Which has parse tree:\n{blocksContext.ToStringTree(fanucParser)}");
             }
 
             /*FanucTargetVisitor visitor = new FanucTargetVisitor();
@@ -118,6 +126,12 @@ namespace GCodeParser
 
             Console.WriteLine(visitor.Output.ToString());
             */
+
+            foreach (var error in _parseErrors)
+            {
+                Debug.WriteLine(error.ToString());
+            }
+
             return _parseErrors;
         }
 

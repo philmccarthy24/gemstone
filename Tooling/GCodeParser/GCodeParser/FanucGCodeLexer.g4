@@ -116,8 +116,8 @@ GCODE_PREFIX: [A-MP-Z] ;
 
 WS : ' ' -> skip;
 
-// end of block
-EOB : '\n' -> channel(HIDDEN);
+// end of block. because new lines are block delimiters, this can't be hidden I think
+NEWLINE : '\n';
 
 CTRL_OUT: '(' -> pushMode(ControlIn);
 

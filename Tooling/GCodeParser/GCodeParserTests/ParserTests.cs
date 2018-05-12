@@ -36,5 +36,17 @@ namespace GCodeParserTests
 
             Assert.That(errors.Count, Is.EqualTo(0));
         }
+
+        [Test]
+        public void TestSingleCommentLine()
+        {
+            var syntaxChecker = new FanucGCodeSyntaxChecker();
+
+            var testGCode = "(Just a comment)\n";
+
+            var errors = syntaxChecker.CheckSyntax(testGCode);
+
+            Assert.That(errors.Count, Is.EqualTo(0));
+        }
     }
 }

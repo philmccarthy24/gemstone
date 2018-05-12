@@ -3,11 +3,11 @@ parser grammar FanucGCodeParser;
 options { tokenVocab=FanucGCodeLexer; }
 
 // Is the program number optional for top level programs?
-program: START_END_PROGRAM EOB programNumber programContent START_END_PROGRAM;
+program: START_END_PROGRAM NEWLINE+ programNumber programContent START_END_PROGRAM NEWLINE+ EOF;
 
 programContent: block+;
 
-programNumber: PROGRAM_NUMBER_PREFIX INTEGER comment? EOB;
+programNumber: PROGRAM_NUMBER_PREFIX INTEGER comment? NEWLINE;
 
 sequenceNumber: SEQUENCE_NUMBER_PREFIX INTEGER;
 
@@ -16,13 +16,13 @@ gcode: GCODE_PREFIX expr;
 
 comment: CTRL_OUT CTRL_OUT_TEXT CTRL_IN;
 
-block: sequenceNumber blockContent? EOB
-	 | blockContent? EOB;
+block: sequenceNumber blockContent? NEWLINE
+	 | blockContent? NEWLINE;
 
 // according to p.491, comments can be in front of seq num (or at beginning of block if sn not specified) or at end of block
 blockContent: (statement | expr)
 			| comment (statement | expr)
-			| (statement | expr) comment
+			| (statement | expr)? comment
 			;
 
 statement: gcode+
@@ -43,9 +43,6 @@ variable: HASH INTEGER
 		| OPEN_BRACKET HASH SYSTEMVAR_CONST_OR_COMMONVAR_IDENTIFIER (OPEN_BRACKET INTEGER CLOSE_BRACKET)? CLOSE_BRACKET
 		;
 
-real: MINUS? DECIMAL
-	;
-
 expr: OPEN_BRACKET expr CLOSE_BRACKET
 	| expr PLUS expr
 	| expr MINUS expr
@@ -61,3 +58,6 @@ expr: OPEN_BRACKET expr CLOSE_BRACKET
 	| real
 	;
 // need to add WHILE DO END, AX, AXNUM, SETVN, BPRNT, DPRNT, POPEN, PCLOS
+
+real: MINUS? DECIMAL
+	;
