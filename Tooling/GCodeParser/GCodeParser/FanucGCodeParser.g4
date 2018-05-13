@@ -43,19 +43,19 @@ variable: HASH INTEGER
 		| OPEN_BRACKET HASH SYSTEMVAR_CONST_OR_COMMONVAR_IDENTIFIER (OPEN_BRACKET INTEGER CLOSE_BRACKET)? CLOSE_BRACKET
 		;
 
-expr: OPEN_BRACKET expr CLOSE_BRACKET
-	| expr PLUS expr
-	| expr MINUS expr
-	| expr MULTIPLY expr
-	| expr DIVIDE expr
-	| expr MOD expr
-	| expr EQUALS expr
-	| expr RELATIONAL_OP expr
-	| expr LOGICAL_OP expr
-	| BUILTIN_FUNCTION OPEN_BRACKET expr (COMMA expr)* CLOSE_BRACKET
-	| variable
-	| INTEGER
-	| real
+expr: OPEN_BRACKET expr CLOSE_BRACKET								# BracketedExpression
+	| expr PLUS expr												# ArithmeticExpression
+	| expr MINUS expr												# ArithmeticExpression
+	| expr MULTIPLY expr											# ArithmeticExpression
+	| expr DIVIDE expr												# ArithmeticExpression
+	| expr MOD expr													# ArithmeticExpression
+	| expr EQUALS expr												# AssignmentExpression
+	| expr RELATIONAL_OP expr										# RelationalExpression
+	| expr LOGICAL_OP expr											# LogicalExpression
+	| BUILTIN_FUNCTION OPEN_BRACKET expr (COMMA expr)* CLOSE_BRACKET	# FunctionExpression
+	| variable														# VariableExpression
+	| INTEGER														# IntegerExpression
+	| real															# RealExpression
 	;
 // need to add WHILE DO END, AX, AXNUM, SETVN, BPRNT, DPRNT, POPEN, PCLOS
 

@@ -5,11 +5,12 @@ using System.Text;
 using System.Threading.Tasks;
 using Antlr4.Runtime.Misc;
 using Antlr4.Runtime;
+using System.Linq.Expressions;
 
 namespace GCodeParser
 {
 
-    public interface IGCodeRuntime
+    public interface IMachineToolRuntime
     {
         void SetNextBlock(uint sequenceNumber);
         double? GetVariable(uint index);
@@ -18,14 +19,14 @@ namespace GCodeParser
     
     public interface IBlock
     {
-        void BlockAction(IGCodeRuntime gcodeRuntime);
+        void BlockAction(IMachineToolRuntime gcodeRuntime);
     }
 
     public class GotoBlock : IBlock
     {
         public uint GotoSequenceNumber { get; set; }
 
-        public virtual void BlockAction(IGCodeRuntime gcodeRuntime)
+        public virtual void BlockAction(IMachineToolRuntime gcodeRuntime)
         {
             gcodeRuntime.SetNextBlock(GotoSequenceNumber);
         }
@@ -35,7 +36,7 @@ namespace GCodeParser
     {
         public Func<bool> ConditionalExpression;
 
-        public override void BlockAction(IGCodeRuntime gcodeRuntime)
+        public override void BlockAction(IMachineToolRuntime gcodeRuntime)
         {
             if (ConditionalExpression())
                 base.BlockAction(gcodeRuntime);
@@ -45,12 +46,12 @@ namespace GCodeParser
     // present just for testing and development. remove when finished.
     public class UnknownBlock : IBlock
     {
-        public void BlockAction(IGCodeRuntime gcodeRuntime)
+        public void BlockAction(IMachineToolRuntime gcodeRuntime)
         {
         }
     }
 
-    public class FanucGCodeRunner : FanucGCodeParserBaseListener, IGCodeRuntime
+    public class FanucGCodeRunner : FanucGCodeParserBaseListener, IMachineToolRuntime
     {
         private IList<IBlock> _programModel;
         private uint _blockPtr;
@@ -113,5 +114,65 @@ namespace GCodeParser
 
             _machineVariables[index] = value;
         }
+    }
+
+    /*class FanucGCodeModel
+    {
+        public Dictionary<string, Expression> 
+        // was worried about how to get context for gcode bocks, but I think we can do this in the VisitBlock method.
+        // ...
+    }*/
+
+    class FanucGCodeExpressionTreeBuilder : FanucGCodeParserBaseVisitor<Expression>
+    {
+        public IMachineToolRuntime Runtime { get; set; }
+
+        // Visitor entrypoint node handler. Assembles a BlockExpression from the list of gcode blocks (note
+        // the term block is being used in two ways here!)
+        public override Expression VisitProgram([NotNull] FanucGCodeParser.ProgramContext context)
+        {
+            BlockExpression program = Expression.Block(context.programContent().block().Select(bc => VisitBlock(bc)).Where(e => e != null));
+            return program;
+        }
+
+        // Visit a gcode block. If there's a sequence number, turn it into a label. Then visit the gcode
+        // block's child AST nodes. return as an Expression
+        public override Expression VisitBlock([NotNull] FanucGCodeParser.BlockContext context)
+        {
+            var statement = context.blockContent().statement();
+            if (statement != null)
+            {
+                // we are dealing with a statement - is it a set of gcode blocks? if so, work out what the IMachineToolRuntime command should be, and
+                // return an expression that invokes a call on that object.
+
+                // otherwise, just return the expression returned by visiting the AST childern
+                // else {
+                    var blockExpr = Visit(context);
+                //}
+            }
+
+            var seqNum = context.sequenceNumber();
+            if (seqNum != null)
+            {
+                var lt = Expression.Label(seqNum.INTEGER().GetText());
+                blockExpr = Expression.Block(Expression.Label(lt), blockExpr); // do we need to check that blockExpr isn't null?
+            }
+
+            // TODO: handle the case where just a comment is specified without statement, expression or sequence number.
+            // we should return null, so the block is ignored (filtered out in the VisitProgram method above)
+
+            return blockExpr;
+        }
+
+        public override Expression VisitGoto([NotNull] FanucGCodeParser.GotoContext context)
+        {
+            return base.VisitGoto(context);
+        }
+
+        MethodCallExpression GetCallExpression<T>(Expression<Func<T>> e)
+        {
+            return e.Body as MethodCallExpression;
+        }
+
     }
 }
