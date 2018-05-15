@@ -7,6 +7,8 @@ using Antlr4.Runtime.Misc;
 using Antlr4.Runtime;
 using System.Linq.Expressions;
 using System.Reflection;
+using GCodeParser;
+using Antlr4.Runtime.Tree;
 
 namespace GCodeParser
 {
@@ -16,7 +18,7 @@ namespace GCodeParser
         double? GetVariable(uint index);
         void SetVariable(uint index, double value);
 
-        void PushLocals();
+        void PushLocals();  // Is the untime the appropriate place to have a stack? Isn't this the domain of the interpreter? ...
         void PopLocals();
 
         double Feedrate { get; set; }
@@ -99,51 +101,84 @@ namespace GCodeParser
             var progContext = fanucParser.program();
 
             // translate the AST to .NET DRT Expression Tree, which can be executed
-            var expressionTreeBuilder = new FanucGCodeExpressionTreeBuilder(_machineToolRuntime);
-            var gcodeAsExpression = expressionTreeBuilder.Visit(progContext);
-
-            // now the program is loaded, execute it
-            Expression.Lambda<Action>(gcodeAsExpression).Compile()();
+            var interpreter = new FanucGCodeInterpreter(_machineToolRuntime);
+            interpreter.Visit(progContext);
         }
     }
 
-    /*class FanucGCodeModel
+    public class GCodeJumpTable : FanucGCodeParserBaseListener
     {
-        public Dictionary<string, Expression> 
-        // was worried about how to get context for gcode bocks, but I think we can do this in the VisitBlock method.
-        // ...
-    }*/
+        private IDictionary<uint, uint> _SeqNumToBlockIdxMap = new Dictionary<uint, uint>();
 
-    class FanucGCodeExpressionTreeBuilder : FanucGCodeParserBaseVisitor<Expression>
+        private uint _lastBlockIdx = 0;
+
+        public override void ExitBlock([NotNull] FanucGCodeParser.BlockContext context)
+        {
+            if (context.sequenceNumber() != null)
+                _SeqNumToBlockIdxMap[uint.Parse(context.sequenceNumber().INTEGER().GetText())] = _lastBlockIdx++;
+            base.ExitBlock(context);
+        }
+
+        public uint this[uint sequenceNumber]
+        {
+            get
+            {
+                return _SeqNumToBlockIdxMap[sequenceNumber];
+            }
+        }
+    }
+
+    // the interpreter 
+    internal sealed class SubExprEvaluation
+    {
+        T EvaluateAs<T>()
+        {
+            return (T)EvalResult;
+        }
+
+        public object EvalResult { get; set;}
+        
+        public Stack<string> ParseErrors { get; set; } = new Stack<string>();
+    }
+
+    class FanucGCodeInterpreter : FanucGCodeParserBaseVisitor<SubExprEvaluation>
     {
         private IMachineToolRuntime _runtime;
+        private GCodeJumpTable _gcodeJumpTable = new GCodeJumpTable(); // this might need to be in a stack, depending on how we handle G65s
 
-        public FanucGCodeExpressionTreeBuilder(IMachineToolRuntime runtime)
+        public FanucGCodeInterpreter(IMachineToolRuntime runtime)
         {
             _runtime = runtime;
         }
 
-        // Visitor entrypoint node handler. Assembles a BlockExpression from the list of gcode blocks (note
-        // the term block is being used in two ways here!)
-        public override Expression VisitProgram([NotNull] FanucGCodeParser.ProgramContext context)
+        // Visitor entrypoint node handler. Builds a table of sequence number to block indeces, for correct execution
+        // of GOTOs, then runs the program evaluating each block at a time
+        public override SubExprEvaluation VisitProgram([NotNull] FanucGCodeParser.ProgramContext context)
         {
-            BlockExpression program = Expression.Block(context.programContent().block().Select(bc => VisitBlock(bc)).Where(e => e != null));
-            return program;
+            // Generate the block number jump table
+            ParseTreeWalker treeWalker = new ParseTreeWalker();
+            treeWalker.Walk(_gcodeJumpTable, context);
+
+            foreach (var blockContext in context.programContent().block())
+            {
+                VisitBlock(blockContext);
+            }
+
+            return null;
         }
 
         // Visit a gcode block. If there's a sequence number, turn it into a label. Then visit the gcode
         // block's child AST nodes. return as an Expression
-        public override Expression VisitBlock([NotNull] FanucGCodeParser.BlockContext context)
+        public override SubExprEvaluation VisitBlock([NotNull] FanucGCodeParser.BlockContext context)
         {
-            Expression blockExpr;
             var statement = context.blockContent().statement();
             if (statement != null)
             {
-                // we are dealing with a statement - is it a set of gcode blocks? if so, work out what the IMachineToolRuntime command should be, 
-                // what addresses we can safely ignore, and return an expression that invokes an appropriate call on the IMachineToolRuntime object.
+                // we are dealing with a statement - is it a set of gcode blocks? if so, work out what the IMachineToolRuntime command should be, and execute it.
+                // resolve sub-expressions to doubles or integers. error out if they can't be resolved to these.
                 if (statement.gcode() != null)
                 {
-                    var addresses = new Dictionary<string, Expression>();
+                    var addresses = new Dictionary<string, SubExprEvaluation>();
                     var gcodeContexts = statement.gcode();
                     foreach (var gcodeContext in gcodeContexts)
                     {
@@ -167,35 +202,36 @@ namespace GCodeParser
                         var finalExpression = Expression.Lambda<Func<Person, bool>>(body, param); //x => x.Id >= 3
                         */
 
-                        /*
-                        var feedratePropSetterExpr = GetPropertySetter<IMachineToolRuntime, double>(_runtime, "Feedrate");
-                        blockExpr = Expression.Block(
-                            feedratePropSetterExpr
-                            );
-                        blockExpr = GetCallExpression(e => _runtime.Feedrate)
-                        addresses["F"];
-                        */
-                    }
-                }
-            }
-            else
-            {
-                // otherwise, it's control flow or variable manipulation instructions.
-                // just return the drt Expression returned by visiting the AST childern
-                blockExpr = Visit(context);
-            }
+            /*
+            var feedratePropSetterExpr = GetPropertySetter<IMachineToolRuntime, double>(_runtime, "Feedrate");
+            blockExpr = Expression.Block(
+                feedratePropSetterExpr
+                );
+            blockExpr = GetCallExpression(e => _runtime.Feedrate)
+            addresses["F"];
+            */ /*
+        }
+    }
+}
+else
+{
+    // otherwise, it's control flow or variable manipulation instructions.
+    // just return the drt Expression returned by visiting the AST childern
+    blockExpr = Visit(context);
+}
 
-            var seqNum = context.sequenceNumber();
-            if (seqNum != null)
-            {
-                var lt = Expression.Label(seqNum.INTEGER().GetText());
-                blockExpr = Expression.Block(Expression.Label(lt), blockExpr); // do we need to check that blockExpr isn't null?
-            }
+var seqNum = context.sequenceNumber();
+if (seqNum != null)
+{
+    var lt = Expression.Label(seqNum.INTEGER().GetText());
+    blockExpr = Expression.Block(Expression.Label(lt), blockExpr); // do we need to check that blockExpr isn't null?
+}
 
-            // TODO: handle the case where just a comment is specified without statement, expression or sequence number.
-            // we should return null, so the block is ignored (filtered out in the VisitProgram method above)
+// TODO: handle the case where just a comment is specified without statement, expression or sequence number.
+// we should return null, so the block is ignored (filtered out in the VisitProgram method above)
 
-            return blockExpr;
+return blockExpr;*/
+            return null;
         }
 
         public override Expression VisitGoto([NotNull] FanucGCodeParser.GotoContext context)
