@@ -44,10 +44,8 @@ variable: HASH INTEGER
 		;
 
 expr: OPEN_BRACKET expr CLOSE_BRACKET								# BracketedExpression
-	| expr PLUS expr												# ArithmeticExpression
-	| expr MINUS expr												# ArithmeticExpression
-	| expr MULTIPLY expr											# ArithmeticExpression
-	| expr DIVIDE expr												# ArithmeticExpression
+	| expr (PLUS|MINUS) expr										# ArithmeticExpression
+	| expr (MULTIPLY|DIVIDE) expr									# ArithmeticExpression
 	| expr MOD expr													# ArithmeticExpression
 	| expr EQUALS expr												# AssignmentExpression
 	| expr RELATIONAL_OP expr										# RelationalExpression

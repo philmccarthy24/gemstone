@@ -227,31 +227,42 @@ namespace GCodeParser
         public override SubExprEvaluation VisitBlock([NotNull] FanucGCodeParser.BlockContext context)
         {
             var statement = context.blockContent().statement();
-            
+
             // are we dealing with a statement, with a set of gcode addresses and parameter? if so, work out what the IMachineToolRuntime command should be, and execute it.
             // resolve sub-expressions to doubles or integers. error out if they can't be resolved to these.
             if (statement != null && statement.gcode() != null)
             {
-                var addresses = new Dictionary<string, SubExprEvaluation>();
-                var gcodeContexts = statement.gcode();
-                foreach (var gcodeContext in gcodeContexts)
+                // build a map of gcode prefixes (note multiple codes may be specified in certain cases, eg multiple preparatory 'G' addresses)
+                var gcodePrefixMap = new Dictionary<string, List<double>>();
+                foreach (var gcode in statement.gcode())
                 {
-                    addresses[gcodeContext.GCODE_PREFIX().GetText()] = Visit(gcodeContext.expr());
+                    var address = gcode.GCODE_PREFIX().GetText();
+                    if (!gcodePrefixMap.ContainsKey(address))
+                        gcodePrefixMap[address] = new List<double>();
+                    gcodePrefixMap[address].Add((double)Visit(gcode.expr())); // resolve any expressions, eg variable lookups etc
                 }
 
-                // for now, just support setting the feedrate
-                if (addresses.ContainsKey("F"))
+                // deal with preparatory codes first
+                var prepCodes = gcodePrefixMap["G"];
+                //...
+
+                // next get the feedrate
+                var feedrate = gcodePrefixMap["F"];
+                if (feedrate.Count > 1)
+                    throw new Exception($"Error: Line {context.Start.Line}. Cannot specify multiple feedrates in a block");
+                if (feedrate.Count() == 1)
                 {
                     try
                     {
-                        _runtime.Feedrate = (int)addresses["F"];
+                        _runtime.Feedrate = (int)feedrate.First();
                     }
                     catch (Exception e)
                     {
-                        throw new Exception($"Error: Line {context.Start.Line}. Feedrate could not be set", e);
+                        throw new Exception($"Error: Line {context.Start.Line}. Could not adjust feedrate", e);
                     }
-                        
                 }
+
+                // etc. add all the other possible codes, and then call _runtime methods
             }
             else
             {
@@ -265,7 +276,30 @@ namespace GCodeParser
 
         public override SubExprEvaluation VisitIf([NotNull] FanucGCodeParser.IfContext context)
         {
-            return base.VisitIf(context);
+            var conditionExpr = context.expr()[0];
+            var thenExpr = context.expr()[1];
+            var gotoExpr = context.@goto();
+
+            bool conditional = false;
+            try
+            {
+                conditional = (bool)Visit(conditionExpr);
+            }
+            catch (Exception e)
+            {
+                throw new Exception($"Error: Line {context.Start.Line}. Could not evaluate conditional expression", e);
+            }
+
+            // this is the "IF", intepretted
+            if (conditional)
+            {
+                if (gotoExpr != null)
+                    Visit(gotoExpr); // GOTO a block
+                else
+                    Visit(thenExpr); // THEN assign a var to something
+            }
+
+            return null;
         }
 
         // NOTE!!! this rule/node handler modifies the flow of block execution via the _nextBlockPtr!
