@@ -110,12 +110,14 @@ namespace GCodeParser
     {
         private IDictionary<uint, uint> _SeqNumToBlockIdxMap = new Dictionary<uint, uint>();
 
-        private uint _lastBlockIdx = 0;
+        private uint _currentBlockIdx = 0;
 
         public override void ExitBlock([NotNull] FanucGCodeParser.BlockContext context)
         {
             if (context.sequenceNumber() != null)
-                _SeqNumToBlockIdxMap[uint.Parse(context.sequenceNumber().INTEGER().GetText())] = _lastBlockIdx++;
+                _SeqNumToBlockIdxMap[uint.Parse(context.sequenceNumber().INTEGER().GetText())] = _currentBlockIdx;
+
+            _currentBlockIdx++;
             base.ExitBlock(context);
         }
 
@@ -128,16 +130,61 @@ namespace GCodeParser
         }
     }
 
-    // the interpreter 
+    // a convenience wrapper around an object, with an error stack trace for managing parse errors.
+    // explicit conversion operators used to enforce parse rule expectations
+    // TODO: might be useful to have these casts throw an exception type with a stack trace, identifying
+    // line and char num it went wrong?
     internal sealed class SubExprEvaluation
     {
-        T EvaluateAs<T>()
+        private object _evalResult;
+        public SubExprEvaluation(object result)
         {
-            return (T)EvalResult;
+            _evalResult = result;
         }
 
-        public object EvalResult { get; set;}
-        
+        public static explicit operator double(SubExprEvaluation exprEval)
+        {
+            if (exprEval._evalResult == null)
+                throw new Exception("Bad evaluation result: expression was not evaluated. Check errors");
+
+            if (exprEval._evalResult.GetType() != typeof(double) && exprEval._evalResult.GetType() != typeof(int))
+                throw new Exception("Bad evaluation result: not numeric");
+
+            return (double)exprEval._evalResult;  // explicit conversion
+        }
+
+        public static explicit operator int(SubExprEvaluation exprEval)
+        {
+            int result;
+            if (exprEval._evalResult == null)
+                throw new Exception("Bad evaluation result: expression was not evaluated. Check errors");
+
+            if (exprEval._evalResult.GetType() != typeof(double) && exprEval._evalResult.GetType() != typeof(int))
+                throw new Exception("Bad evaluation result: not a numeric type");
+
+            if (exprEval._evalResult.GetType() == typeof(double))
+            {
+                result = Convert.ToInt32(exprEval._evalResult);
+                if (result != (double)exprEval._evalResult)
+                    throw new Exception("Error converting double to int: loss of precision would occur");
+            }
+            else result = (int)exprEval._evalResult;
+
+            return result;  // explicit conversion
+        }
+
+        // relational expressions should evaluate to bool
+        public static explicit operator bool (SubExprEvaluation exprEval)
+        {
+            if (exprEval._evalResult == null)
+                throw new Exception("Bad evaluation result: expression was not evaluated. Check errors");
+            if (exprEval._evalResult.GetType() != typeof(bool))
+                throw new Exception("Bad evaluation result: not boolean");
+
+            return (bool)exprEval._evalResult;  // explicit conversion
+        }
+
+
         public Stack<string> ParseErrors { get; set; } = new Stack<string>();
     }
 
@@ -145,13 +192,16 @@ namespace GCodeParser
     {
         private IMachineToolRuntime _runtime;
         private GCodeJumpTable _gcodeJumpTable = new GCodeJumpTable(); // this might need to be in a stack, depending on how we handle G65s
+        private uint _nextBlockPtr = 0; // this might need to be in a stack, depending on how we handle G65s
+        // TODO: I think possibly that variable handling belongs in the interpreter, not runtime - simply because we will need to handle stacks for G65s, and it's
+        // sensible to do a Pop/Push for this related data in one place. Noting that GUIs etc might need to interrogate the current macro variables
 
         public FanucGCodeInterpreter(IMachineToolRuntime runtime)
         {
             _runtime = runtime;
         }
 
-        // Visitor entrypoint node handler. Builds a table of sequence number to block indeces, for correct execution
+        // Visitor top level program rule/node handler. Builds a table of sequence number to block indeces, for correct execution
         // of GOTOs, then runs the program evaluating each block at a time
         public override SubExprEvaluation VisitProgram([NotNull] FanucGCodeParser.ProgramContext context)
         {
@@ -159,117 +209,73 @@ namespace GCodeParser
             ParseTreeWalker treeWalker = new ParseTreeWalker();
             treeWalker.Walk(_gcodeJumpTable, context);
 
-            foreach (var blockContext in context.programContent().block())
+            // now interpret the blocks of the gcode program
+            var blockContexts = context.programContent().block();
+            do
             {
-                VisitBlock(blockContext);
+                uint currBlockPtr = _nextBlockPtr;
+                VisitBlock(blockContexts[_nextBlockPtr]);
+                if (currBlockPtr == _nextBlockPtr)
+                    // ptr was unmodified by block, so go to next block
+                    _nextBlockPtr++;
+            } while (_nextBlockPtr < blockContexts.Length);
+
+            return null;
+        }
+
+        // Visit a gcode block
+        public override SubExprEvaluation VisitBlock([NotNull] FanucGCodeParser.BlockContext context)
+        {
+            var statement = context.blockContent().statement();
+            
+            // are we dealing with a statement, with a set of gcode addresses and parameter? if so, work out what the IMachineToolRuntime command should be, and execute it.
+            // resolve sub-expressions to doubles or integers. error out if they can't be resolved to these.
+            if (statement != null && statement.gcode() != null)
+            {
+                var addresses = new Dictionary<string, SubExprEvaluation>();
+                var gcodeContexts = statement.gcode();
+                foreach (var gcodeContext in gcodeContexts)
+                {
+                    addresses[gcodeContext.GCODE_PREFIX().GetText()] = Visit(gcodeContext.expr());
+                }
+
+                // for now, just support setting the feedrate
+                if (addresses.ContainsKey("F"))
+                {
+                    try
+                    {
+                        _runtime.Feedrate = (int)addresses["F"];
+                    }
+                    catch (Exception e)
+                    {
+                        throw new Exception($"Error: Line {context.Start.Line}. Feedrate could not be set", e);
+                    }
+                        
+                }
+            }
+            else
+            {
+                // otherwise, it's a control flow or variable manipulation instruction.
+                // delegate to other rule handlers to carry out these actions
+                Visit(context);
             }
 
             return null;
         }
 
-        // Visit a gcode block. If there's a sequence number, turn it into a label. Then visit the gcode
-        // block's child AST nodes. return as an Expression
-        public override SubExprEvaluation VisitBlock([NotNull] FanucGCodeParser.BlockContext context)
+        public override SubExprEvaluation VisitIf([NotNull] FanucGCodeParser.IfContext context)
         {
-            var statement = context.blockContent().statement();
-            if (statement != null)
-            {
-                // we are dealing with a statement - is it a set of gcode blocks? if so, work out what the IMachineToolRuntime command should be, and execute it.
-                // resolve sub-expressions to doubles or integers. error out if they can't be resolved to these.
-                if (statement.gcode() != null)
-                {
-                    var addresses = new Dictionary<string, SubExprEvaluation>();
-                    var gcodeContexts = statement.gcode();
-                    foreach (var gcodeContext in gcodeContexts)
-                    {
-                        addresses[gcodeContext.GCODE_PREFIX().GetText()] = Visit(gcodeContext.expr());
-                    }
-
-                    // for now, just support setting the feedrate
-                    if (addresses.ContainsKey("F"))
-                    {
-                        // I'm not sure how to put this into an expression tree to set a property on an already-instantiated class...
-
-                        var assigner = GetAssigner<IMachineToolRuntime, double>(u => u.Feedrate);
-                        //assigner.Compile(_runtime, addresses["F"]);
-                        // this is't right
-
-
-                        /*var parameter = Expression.Parameter(typeof(Person), "x");
-                        var member = Expression.Property(parameter, "Id"); //x.Id
-                        var constant = Expression.Constant(3);
-                        var body = Expression.GreaterThanOrEqual(member, constant); //x.Id >= 3
-                        var finalExpression = Expression.Lambda<Func<Person, bool>>(body, param); //x => x.Id >= 3
-                        */
-
-            /*
-            var feedratePropSetterExpr = GetPropertySetter<IMachineToolRuntime, double>(_runtime, "Feedrate");
-            blockExpr = Expression.Block(
-                feedratePropSetterExpr
-                );
-            blockExpr = GetCallExpression(e => _runtime.Feedrate)
-            addresses["F"];
-            */ /*
+            return base.VisitIf(context);
         }
-    }
-}
-else
-{
-    // otherwise, it's control flow or variable manipulation instructions.
-    // just return the drt Expression returned by visiting the AST childern
-    blockExpr = Visit(context);
-}
 
-var seqNum = context.sequenceNumber();
-if (seqNum != null)
-{
-    var lt = Expression.Label(seqNum.INTEGER().GetText());
-    blockExpr = Expression.Block(Expression.Label(lt), blockExpr); // do we need to check that blockExpr isn't null?
-}
-
-// TODO: handle the case where just a comment is specified without statement, expression or sequence number.
-// we should return null, so the block is ignored (filtered out in the VisitProgram method above)
-
-return blockExpr;*/
+        // NOTE!!! this rule/node handler modifies the flow of block execution via the _nextBlockPtr!
+        public override SubExprEvaluation VisitGoto([NotNull] FanucGCodeParser.GotoContext context)
+        {
+            uint sequenceNumber = uint.Parse(context.INTEGER().GetText());
+            // lookup block index for sequence number
+            var nextBlockIndex = _gcodeJumpTable[sequenceNumber];
+            _nextBlockPtr = nextBlockIndex;
             return null;
         }
-
-        public override Expression VisitGoto([NotNull] FanucGCodeParser.GotoContext context)
-        {
-            return base.VisitGoto(context);
-        }
-
-        private static MethodCallExpression GetCallExpression<T>(Expression<Func<T>> e)
-        {
-            return e.Body as MethodCallExpression;
-        }
-
-        /*
-        static LambdaExpression GetPropertySetter<TElement, TValue>(TElement elem, string propertyName)
-        {
-            Type elementType = elem.GetType();
-
-            PropertyInfo pi = elementType.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
-            MethodInfo mi = pi.GetSetMethod();  //  This retrieves the 'get_LastName' method
-
-            ParameterExpression oParam = Expression.Parameter(elementType, "obj");
-            ParameterExpression vParam = Expression.Parameter(typeof(TValue), "val");
-            MethodCallExpression mce = Expression.Call(oParam, mi, vParam);
-            return Expression.Lambda<Action<TElement, TValue>>(mce, oParam, vParam);
-        }
-        */
-
-        private static Expression<Action<TClass, TValue>> GetAssigner<TClass, TValue>(Expression<Func<TClass, TValue>> propertyAccessor)
-        {
-            var prop = ((MemberExpression)propertyAccessor.Body).Member;
-            var typeParam = Expression.Parameter(typeof(TClass));
-            var valueParam = Expression.Parameter(typeof(TValue));
-            return Expression.Lambda<Action<TClass, TValue>>(
-                Expression.Assign(
-                    Expression.MakeMemberAccess(typeParam, prop),
-                    valueParam), typeParam, valueParam);
-
-        }
-
     }
 }
