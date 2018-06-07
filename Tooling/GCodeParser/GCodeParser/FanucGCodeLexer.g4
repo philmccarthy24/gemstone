@@ -16,7 +16,7 @@ MOD: 'MOD' ;
 EQUALS: '=';
 
 fragment DIGIT: [0-9] ;
-INTEGER: DIGIT+ ;
+DIGITS: DIGIT+ ;
 DECIMAL: DIGIT+ ('.' DIGIT*)? ; // negative decimals handled in parser rules
 
 

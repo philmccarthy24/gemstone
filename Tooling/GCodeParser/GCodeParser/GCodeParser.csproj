@@ -60,8 +60,9 @@
     <Compile Include="FanucGCodeParser.g4.cs">
       <DependentUpon>FanucGCodeParser.g4</DependentUpon>
     </Compile>
+    <Compile Include="FanucGCodeProgram.cs" />
     <Compile Include="FanucGCodeUtils.cs" />
-    <Compile Include="GCodeRunner.cs" />
+    <Compile Include="FanucGCodeInterpreter.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

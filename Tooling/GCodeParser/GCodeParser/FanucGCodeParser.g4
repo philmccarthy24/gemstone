@@ -7,9 +7,9 @@ program: START_END_PROGRAM NEWLINE+ programNumber programContent START_END_PROGR
 
 programContent: block+;
 
-programNumber: PROGRAM_NUMBER_PREFIX INTEGER comment? NEWLINE;
+programNumber: PROGRAM_NUMBER_PREFIX DIGITS comment? NEWLINE;
 
-sequenceNumber: SEQUENCE_NUMBER_PREFIX INTEGER;
+sequenceNumber: SEQUENCE_NUMBER_PREFIX DIGITS;
 
 // in fanuc nomenclature this is a "word" consisting of an address and a number
 gcode: GCODE_PREFIX expr;
@@ -34,13 +34,13 @@ if: IF OPEN_BRACKET expr CLOSE_BRACKET THEN expr
   | IF OPEN_BRACKET expr CLOSE_BRACKET goto
   ;
 
-goto: GOTO INTEGER
+goto: GOTO DIGITS
 	;
 
 //p380 for variable description
-variable: HASH INTEGER
+variable: HASH DIGITS
 		| HASH OPEN_BRACKET expr CLOSE_BRACKET
-		| OPEN_BRACKET HASH SYSTEMVAR_CONST_OR_COMMONVAR_IDENTIFIER (OPEN_BRACKET INTEGER CLOSE_BRACKET)? CLOSE_BRACKET
+		| OPEN_BRACKET HASH SYSTEMVAR_CONST_OR_COMMONVAR_IDENTIFIER (OPEN_BRACKET DIGITS CLOSE_BRACKET)? CLOSE_BRACKET
 		;
 
 expr: OPEN_BRACKET expr CLOSE_BRACKET								# BracketedExpression
@@ -52,12 +52,11 @@ expr: OPEN_BRACKET expr CLOSE_BRACKET								# BracketedExpression
 	| expr LOGICAL_OP expr											# LogicalExpression
 	| BUILTIN_FUNCTION OPEN_BRACKET expr (COMMA expr)* CLOSE_BRACKET	# FunctionExpression
 	| variable														# VariableExpression
-	| INTEGER														# IntegerExpression
+	| integer														# IntegerExpression
 	| real															# RealExpression
 	;
 // need to add WHILE DO END, AX, AXNUM, SETVN, BPRNT, DPRNT, POPEN, PCLOS
 
-real: MINUS? DECIMAL
-	;
+real: (PLUS|MINUS)? DECIMAL;
 
-// TODO: will need to support signed (negative/positive) integers
+integer: (PLUS|MINUS)? DIGITS;

@@ -18,7 +18,7 @@ namespace GCodeParser
         Divide = FanucGCodeLexer.DIVIDE,
         Modulus = FanucGCodeLexer.MOD,
         Assign = FanucGCodeLexer.EQUALS,
-        Integer = FanucGCodeLexer.INTEGER,
+        Integer = FanucGCodeLexer.DIGITS,
         Decimal = FanucGCodeLexer.DECIMAL,
         NamedVariable = FanucGCodeLexer.SYSTEMVAR_CONST_OR_COMMONVAR_IDENTIFIER,
         Comma = FanucGCodeLexer.COMMA,
@@ -110,7 +110,7 @@ namespace GCodeParser
 
             if (programContext)
             {
-                // this line seems to trigger the actual parse.
+                // this line triggers the actual parse.
                 var progContext = fanucParser.program();
             }
             else
