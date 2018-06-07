@@ -118,7 +118,7 @@ namespace GCodeParser
 
         public override void EnterProgram([NotNull] ProgramContext context)
         {
-            _name = $"O{context.programNumber().GetText()}";
+            _name = $"O{context.programNumber().DIGITS().GetText()}";
             base.EnterProgram(context);
         }
 

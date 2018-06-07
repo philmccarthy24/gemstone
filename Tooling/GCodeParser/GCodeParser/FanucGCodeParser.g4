@@ -3,7 +3,7 @@ parser grammar FanucGCodeParser;
 options { tokenVocab=FanucGCodeLexer; }
 
 // Is the program number optional for top level programs?
-program: START_END_PROGRAM NEWLINE+ programNumber programContent START_END_PROGRAM NEWLINE+ EOF;
+program: START_END_PROGRAM NEWLINE+ programNumber programContent START_END_PROGRAM NEWLINE? EOF;
 
 programContent: block+;
 
