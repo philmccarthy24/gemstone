@@ -87,7 +87,7 @@ namespace GCodeParser
     public class FanucGCodeInterpreter : FanucGCodeParserBaseVisitor<object>, IGCodeInterpreter
     {
         private Stack<IGCodeProgram> _stack;
-        private double?[] _commonVariables = new double?[500];              // TODO: add support for #100 to #199 (volative macros) as well.
+        private double?[] _commonVariables = new double?[600]; // #100 to #199 map to 0-99. #500-#999 map to 100-599
 
         private const uint NUM_LOCALS = 33;
 
@@ -285,7 +285,7 @@ namespace GCodeParser
             if (!resolvedRightExpr.IsNumeric())
                 throw new Exception($"Error: Line {rightExpr.Start.Line}, col {rightExpr.Start.Column}. Could not resolve operand to comparable numeric type.");
 
-            return new NumericOperands { Left = (double?)resolvedLeftExpr, Right = (double?)resolvedRightExpr };
+            return new NumericOperands { Left = resolvedLeftExpr as double?, Right = resolvedRightExpr as double?};
         }
 
         public override object VisitRelationalExpression([NotNull] FanucGCodeParser.RelationalExpressionContext context)
@@ -362,16 +362,43 @@ namespace GCodeParser
 
             var lhs = context.expr()[0];
             var rhs = context.expr()[1];
-            var resolvedLhs = Visit(lhs);
-            if (resolvedLhs)
-
-            return base.VisitAssignmentExpression(context);
+            var resolvedLhs = Visit(lhs) as MachineVariable;
+            if (resolvedLhs == null)
+                throw new Exception($"Error: Line {lhs.Start.Line}, col {lhs.Start.Column}. Target of assignment must be a machine variable");
+            var resolvedRhs = Visit(rhs);
+            if (resolvedRhs.GetType() == typeof(MachineVariable))
+                resolvedLhs.Value = ((MachineVariable)resolvedRhs).Value; // NOTE this can set resolvedLhs.Value to null
+            else if (resolvedRhs.IsNumeric())
+                resolvedLhs.Value = (double?)resolvedRhs ?? 0;
+            else throw new Exception($"Error: Line {rhs.Start.Line}, col {rhs.Start.Column}. Assignment argument must be a machine variable or numeric");
+            return null;
         }
 
         public override object VisitVariableExpression([NotNull] FanucGCodeParser.VariableExpressionContext context)
         {
-            // return a MachineVariable object here
-            return base.VisitVariableExpression(context);
+            MachineVariable ncVar;
+            var varExpr = context.variable().expr();
+            var systemVar = context.variable().SYSTEMVAR_CONST_OR_COMMONVAR_IDENTIFIER();
+
+            if (systemVar != null)
+                throw new NotImplementedException("Not there yet");
+            else
+            {
+                if (varExpr != null)
+                {
+                    // this is a variable of the form #[expr]
+                    var resolvedVarExpr = Visit(varExpr);
+                    if (!resolvedVarExpr.IsNumeric())
+                        throw new Exception($"Error: Line {varExpr.Start.Line}, col {varExpr.Start.Column}. Could not resolve variable lookup expression to numeric type.");
+                    ncVar = new MachineVariable(this, (uint)((double?)resolvedVarExpr ?? 0));
+                }
+                else
+                {
+                    // this is the simplest var expression: #n where N is an int
+                    ncVar = new MachineVariable(this, uint.Parse(context.variable().DIGITS().GetText()));
+                }
+            }
+            return ncVar;
         }
 
         // IMachineVariableTable implementation that allows lookup / setting of machine vars
@@ -384,8 +411,10 @@ namespace GCodeParser
                     var = null;
                 else if (idx > 0 && idx <= NUM_LOCALS)
                     var = _stack.Peek().LocalVariables[idx - 1];
+                else if (idx >= 100 && idx <= 199)
+                    var = _commonVariables[idx - 100];
                 else if (idx >= 500 && idx <= 999)
-                    var = _commonVariables[idx - 500];
+                    var = _commonVariables[idx - 400];
                 /*
                  * add special variables here, eg to get current machine co-ordinates etc
                  */ 
@@ -401,8 +430,10 @@ namespace GCodeParser
 
                 if (idx <= NUM_LOCALS)
                     _stack.Peek().LocalVariables[idx - 1] = value;
+                else if (idx >= 100 && idx <= 199)
+                    _commonVariables[idx - 100] = value;
                 else if (idx >= 500 && idx <= 999)
-                    _commonVariables[idx - 500] = value;
+                    _commonVariables[idx - 400] = value;
                 else throw new Exception("Error: Attempt to set a variable outside supported limits");
             }
         }

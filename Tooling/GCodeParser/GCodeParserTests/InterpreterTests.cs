@@ -40,5 +40,28 @@ N40 (This is label 30)
 
             //Assert.That(errors.Count, Is.GreaterThan(0));
         }
+
+        [Test]
+        public void TestVariableAssignment()
+        {
+            string testProgText = @"%
+O9874(TestProg)
+#1=#0
+#2=4.9
+#[4-1]=9.3
+%";
+            testProgText = testProgText.Replace("\r", "");
+
+            var testProgram = new FanucGCodeProgram() { Content = testProgText };
+
+            IMachineToolRuntime runtime = new FanucMachineToolRuntime();
+            IGCodeInterpreter interpreter = new FanucGCodeInterpreter(runtime);
+
+            interpreter.RunProgram(testProgram);
+
+            Assert.That(interpreter[1], Is.Null);
+            Assert.That(interpreter[2], Is.EqualTo(4.9));
+            Assert.That(interpreter[3], Is.EqualTo(9.3));
+        }
     }
 }
