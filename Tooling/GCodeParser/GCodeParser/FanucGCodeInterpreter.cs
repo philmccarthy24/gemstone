@@ -10,9 +10,13 @@ using System.Reflection;
 using GCodeParser;
 using Antlr4.Runtime.Tree;
 using System.Diagnostics;
+using GCode.Utility;
 
-namespace GCodeParser
+namespace GCode.Interpreter
 {
+
+    ///////////////////////////////////////////////////
+    // Interfaces - should probably be moved somewhere else, non-Fanuc specific
 
     public interface IMachineToolRuntime
     {
@@ -23,7 +27,7 @@ namespace GCodeParser
 
     public interface IMachineVariableTable
     {
-        double? this[uint idx] { get;  set; }
+        double? this[uint idx] { get; set; }
     }
 
     public interface IGCodeInterpreter : IMachineVariableTable
@@ -35,53 +39,11 @@ namespace GCodeParser
         void RunProgram(IGCodeProgram startProgram);
     }
 
+    //////////////////////////////////////////////////////////
+
     public class FanucMachineToolRuntime : IMachineToolRuntime
     {
         public double Feedrate { get; set; }
-    }
-
-    internal static class ObjectExtenions
-    {
-        public static bool IsNumeric(this object objToTest)
-        {
-            return (objToTest.GetType() == typeof(int) || objToTest.GetType() == typeof(double) || objToTest.GetType() == typeof(MachineVariable));
-        }
-    }
-
-    internal sealed class NumericOperands
-    {
-        public double? Left { get; set; }
-        public double? Right { get; set; }
-    }
-
-    // class to represent machine variables during interpretation
-    internal sealed class MachineVariable
-    {
-        private IMachineVariableTable _varTable;
-        private uint _varIdx;
-
-        public MachineVariable(IMachineVariableTable varTable, uint varIdx)
-        {
-            _varTable = varTable;
-            _varIdx = varIdx;
-        }
-
-        public double? Value
-        {
-            get
-            {
-                return _varTable[_varIdx];
-            }
-            set
-            {
-                _varTable[_varIdx] = value;
-            }
-        }
-
-        public static implicit operator double?(MachineVariable mv)
-        {
-            return mv.Value;
-        }
     }
 
     public class FanucGCodeInterpreter : FanucGCodeParserBaseVisitor<object>, IGCodeInterpreter
@@ -155,7 +117,7 @@ namespace GCodeParser
 
                         var resolvedExpr = Visit(gcode.expr());
                         if (!resolvedExpr.IsNumeric())
-                            throw new Exception($"Error: Line {gcode.expr().Start.Line}, col {gcode.expr().Start.Column}. Cannot resolve {address} param to numeric type");
+                            throw new GCodeRuntimeException($"Cannot resolve {address} param to numeric type", _stack.Peek().Name, gcode.expr().Start.Line, gcode.expr().Start.Column);
                         gcodePrefixMap[address].Add((double)resolvedExpr);
                     }
 
@@ -171,7 +133,7 @@ namespace GCodeParser
                     {
                         var feedrate = gcodePrefixMap["F"];
                         if (feedrate.Count > 1)
-                            throw new Exception($"Error: Line {context.Start.Line}. Cannot specify multiple feedrates in a block");
+                            throw new GCodeRuntimeException("Cannot specify multiple feedrates in a block", _stack.Peek().Name, context.Start.Line);
                         if (feedrate.Count() == 1)
                         {
                             try
@@ -180,7 +142,7 @@ namespace GCodeParser
                             }
                             catch (Exception e)
                             {
-                                throw new Exception($"Error: Line {context.Start.Line}. Could not adjust feedrate", e);
+                                throw new GCodeRuntimeException("Could not adjust feedrate", _stack.Peek().Name, context.Start.Line, e);
                             }
                         }
                     }
@@ -189,7 +151,7 @@ namespace GCodeParser
                 }
                 else
                 {
-                    // otherwise, it's a control flow instruction.
+                    // it's a program flow control statement (IF, GOTO etc).
                     // delegate to other rule handlers to carry out these actions
                     Visit(statement);
                 }
@@ -205,7 +167,7 @@ namespace GCodeParser
                 // we're dealing with a comment. TRACE it out for a giggle.
                 Debug.WriteLine(comment.CTRL_OUT_TEXT().GetText());
             }
-            else throw new Exception($"Error: Line {context.Start.Line}. Unexpected content encountered.");
+            else throw new GCodeRuntimeException("Unexpected content encountered.", _stack.Peek().Name, context.Start.Line);
 
             return null;
         }
@@ -221,12 +183,12 @@ namespace GCodeParser
             {
                 var resolvedExpr = Visit(conditionExpr);
                 if (resolvedExpr == null || resolvedExpr.GetType() != typeof(bool))
-                    throw new Exception($"Error: Line {context.Start.Line}. Conditional expression could not be resolved to true or false");
+                    throw new GCodeRuntimeException("Conditional expression could not be resolved to true or false", _stack.Peek().Name, context.Start.Line);
                 conditional = (bool)resolvedExpr;
             }
             catch (Exception e)
             {
-                throw new Exception($"Error: Line {context.Start.Line}. Could not evaluate conditional expression", e);
+                throw new GCodeRuntimeException("Could not evaluate conditional expression", _stack.Peek().Name, context.Start.Line, e);
             }
 
             // this is the "IF", intepretted
@@ -256,7 +218,7 @@ namespace GCodeParser
             int result;
             if (!int.TryParse(context.integer().GetText(), out result))
             {
-                throw new FormatException($"Error: Line {context.integer().Start.Line}, col {context.integer().Start.Column}. Could not parse integer value.");
+                throw new GCodeRuntimeException("Could not parse integer value.", _stack.Peek().Name, context.integer().Start.Line, context.integer().Start.Column);
             }
             return result;
         }
@@ -266,7 +228,7 @@ namespace GCodeParser
             double result;
             if (!double.TryParse(context.real().GetText(), out result))
             {
-                throw new FormatException($"Error: Line {context.real().Start.Line}, col {context.real().Start.Column}. Could not parse double value.");
+                throw new GCodeRuntimeException("Could not parse double value.", _stack.Peek().Name, context.real().Start.Line, context.real().Start.Column);
             }
             return result;
         }
@@ -274,18 +236,18 @@ namespace GCodeParser
         private NumericOperands ResolveNumericBinaryOperands(FanucGCodeParser.ExprContext[] operands)
         {
             if (operands == null || operands.Length != 2)
-                throw new Exception("Expected left and right expressions"); // in practice this would be caught before this point
+                throw new InvalidOperationException("Expected left and right expressions"); // in practice this would be caught before this point
 
             var leftExpr = operands[0];
             var rightExpr = operands[1];
             var resolvedLeftExpr = Visit(leftExpr);
             if (!resolvedLeftExpr.IsNumeric())
-                throw new Exception($"Error: Line {leftExpr.Start.Line}, col {leftExpr.Start.Column}. Could not resolve operand to comparable numeric type.");
+                throw new GCodeRuntimeException("Could not resolve operand to comparable numeric type", _stack.Peek().Name, leftExpr.Start.Line, leftExpr.Start.Column);
             var resolvedRightExpr = Visit(rightExpr);
             if (!resolvedRightExpr.IsNumeric())
-                throw new Exception($"Error: Line {rightExpr.Start.Line}, col {rightExpr.Start.Column}. Could not resolve operand to comparable numeric type.");
+                throw new GCodeRuntimeException("Could not resolve operand to comparable numeric type.", _stack.Peek().Name, rightExpr.Start.Line, rightExpr.Start.Column);
 
-            return new NumericOperands { Left = resolvedLeftExpr as double?, Right = resolvedRightExpr as double?};
+            return new NumericOperands { Left = resolvedLeftExpr.NormaliseNumeric(), Right = resolvedRightExpr.NormaliseNumeric() };
         }
 
         public override object VisitRelationalExpression([NotNull] FanucGCodeParser.RelationalExpressionContext context)
@@ -322,7 +284,7 @@ namespace GCodeParser
                         result = operands.Left <= operands.Right;
                     break;
                 default:
-                    throw new Exception($"Error: Line {context.RELATIONAL_OP().Symbol.Line}, col {context.RELATIONAL_OP().Symbol.Column}. Invalid relational operator detected.");
+                    throw new GCodeRuntimeException("Invalid relational operator detected.", _stack.Peek().Name, context.RELATIONAL_OP().Symbol.Line, context.RELATIONAL_OP().Symbol.Column);
             }
             return result;
         }
@@ -346,7 +308,7 @@ namespace GCodeParser
                     result = operands.Left / operands.Right;
                 else if (context.MOD() != null)
                     result = operands.Left % operands.Right;
-                else throw new Exception($"Error: Line {context.Start.Line}. Unrecognised arithmetic expression type");
+                else throw new GCodeRuntimeException("Unrecognised arithmetic expression type", _stack.Peek().Name, context.Start.Line);
             }
             return result;
         }
@@ -364,13 +326,13 @@ namespace GCodeParser
             var rhs = context.expr()[1];
             var resolvedLhs = Visit(lhs) as MachineVariable;
             if (resolvedLhs == null)
-                throw new Exception($"Error: Line {lhs.Start.Line}, col {lhs.Start.Column}. Target of assignment must be a machine variable");
+                throw new GCodeRuntimeException("Target of assignment must be a machine variable", _stack.Peek().Name, lhs.Start.Line, lhs.Start.Column);
             var resolvedRhs = Visit(rhs);
             if (resolvedRhs.GetType() == typeof(MachineVariable))
                 resolvedLhs.Value = ((MachineVariable)resolvedRhs).Value; // NOTE this can set resolvedLhs.Value to null
             else if (resolvedRhs.IsNumeric())
-                resolvedLhs.Value = (double?)resolvedRhs ?? 0;
-            else throw new Exception($"Error: Line {rhs.Start.Line}, col {rhs.Start.Column}. Assignment argument must be a machine variable or numeric");
+                resolvedLhs.Value = resolvedRhs.NormaliseNumeric() ?? 0;
+            else throw new GCodeRuntimeException("Assignment argument must be a machine variable or numeric", _stack.Peek().Name, rhs.Start.Line, rhs.Start.Column);
             return null;
         }
 
@@ -389,7 +351,7 @@ namespace GCodeParser
                     // this is a variable of the form #[expr]
                     var resolvedVarExpr = Visit(varExpr);
                     if (!resolvedVarExpr.IsNumeric())
-                        throw new Exception($"Error: Line {varExpr.Start.Line}, col {varExpr.Start.Column}. Could not resolve variable lookup expression to numeric type.");
+                        throw new GCodeRuntimeException("Could not resolve variable lookup expression to numeric type.", _stack.Peek().Name, varExpr.Start.Line, varExpr.Start.Column);
                     ncVar = new MachineVariable(this, (uint)((double?)resolvedVarExpr ?? 0));
                 }
                 else
@@ -418,7 +380,7 @@ namespace GCodeParser
                 /*
                  * add special variables here, eg to get current machine co-ordinates etc
                  */ 
-                else throw new Exception("Bad variable number");
+                else throw new InvalidOperationException("Bad variable number");
                 return var;
             }
 
@@ -426,7 +388,7 @@ namespace GCodeParser
             {
 
                 if (idx == 0)
-                    throw new Exception("Error: Cannot set #0");
+                    throw new InvalidOperationException("Error: Cannot set #0");
 
                 if (idx <= NUM_LOCALS)
                     _stack.Peek().LocalVariables[idx - 1] = value;
@@ -434,7 +396,7 @@ namespace GCodeParser
                     _commonVariables[idx - 100] = value;
                 else if (idx >= 500 && idx <= 999)
                     _commonVariables[idx - 400] = value;
-                else throw new Exception("Error: Attempt to set a variable outside supported limits");
+                else throw new InvalidOperationException("Error: Attempt to set a variable outside supported limits");
             }
         }
     }

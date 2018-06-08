@@ -63,6 +63,7 @@
     <Compile Include="FanucGCodeProgram.cs" />
     <Compile Include="FanucGCodeUtils.cs" />
     <Compile Include="FanucGCodeInterpreter.cs" />
+    <Compile Include="GCodeUtility.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

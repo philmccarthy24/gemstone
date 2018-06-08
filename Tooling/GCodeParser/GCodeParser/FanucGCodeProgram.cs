@@ -1,15 +1,16 @@
 ﻿using Antlr4.Runtime;
 using Antlr4.Runtime.Misc;
 using Antlr4.Runtime.Tree;
+using GCode.Utility;
+using GCodeParser;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static GCodeParser.FanucGCodeParser;
 
-namespace GCodeParser
+namespace GCode.Interpreter
 {
     public interface IGCodeProgram
     {
@@ -67,7 +68,7 @@ namespace GCodeParser
                 LocalVariables = new double?[NUM_LOCALS];
                 CurrentBlockIndex = 0;
                 _tempBlockNum = 0;
-                _parseErrors = new List<string>();
+                _parseErrors = new List<GCodeRuntimeException>();
 
                 // parse the program
                 AntlrInputStream inputStream = new AntlrInputStream(value);
@@ -83,8 +84,10 @@ namespace GCodeParser
                 RunContext = fanucParser.program();
 
                 // if we have any parse errors, throw
-                if (_parseErrors.Count > 0)
-                    throw new InvalidDataException(string.Join("\n", _parseErrors));
+                if (_parseErrors.Count == 1)
+                    throw _parseErrors[0];
+                if (_parseErrors.Count > 1)
+                    throw new AggregateException(_parseErrors);
 
                 // Generate the block number jump table (as well as set the
                 // program name - underlying var)
@@ -116,7 +119,7 @@ namespace GCodeParser
             base.ExitBlock(context);
         }
 
-        public override void EnterProgram([NotNull] ProgramContext context)
+        public override void EnterProgram([NotNull] FanucGCodeParser.ProgramContext context)
         {
             _name = $"O{context.programNumber().DIGITS().GetText()}";
             base.EnterProgram(context);
@@ -125,10 +128,10 @@ namespace GCodeParser
         ////////////////////////////////////////////////////////////////////////
         // IAntlrErrorListener<IToken> implementation
 
-        private List<string> _parseErrors;
+        private List<GCodeRuntimeException> _parseErrors;
         public void SyntaxError(IRecognizer recognizer, IToken offendingSymbol, int line, int charPositionInLine, string msg, RecognitionException e)
         {
-            _parseErrors.Add(msg); // TODO: determine if we need to add more here to get line/pos etc
+            _parseErrors.Add(new GCodeRuntimeException(msg, _name, line, charPositionInLine));
         }
     }
 }
