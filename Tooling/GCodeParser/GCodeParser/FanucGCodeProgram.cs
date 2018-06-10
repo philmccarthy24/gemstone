@@ -68,7 +68,7 @@ namespace GCode.Interpreter
                 LocalVariables = new double?[NUM_LOCALS];
                 CurrentBlockIndex = 0;
                 _tempBlockNum = 0;
-                _parseErrors = new List<GCodeRuntimeException>();
+                _parseErrors = new List<GCodeException>();
 
                 // parse the program
                 AntlrInputStream inputStream = new AntlrInputStream(value);
@@ -128,10 +128,10 @@ namespace GCode.Interpreter
         ////////////////////////////////////////////////////////////////////////
         // IAntlrErrorListener<IToken> implementation
 
-        private List<GCodeRuntimeException> _parseErrors;
+        private List<GCodeException> _parseErrors;
         public void SyntaxError(IRecognizer recognizer, IToken offendingSymbol, int line, int charPositionInLine, string msg, RecognitionException e)
         {
-            _parseErrors.Add(new GCodeRuntimeException(msg, _name, line, charPositionInLine));
+            _parseErrors.Add(new GCodeException(msg, _name, line, charPositionInLine));
         }
     }
 }

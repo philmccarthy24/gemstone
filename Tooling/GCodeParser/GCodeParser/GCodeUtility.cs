@@ -35,17 +35,17 @@ namespace GCode.Utility
         public double? Right { get; set; }
     }
 
-    public class GCodeRuntimeException : Exception
+    public class GCodeException : Exception
     {
         public int Line { get; set; }
         public int Column { get; set; }
         public string Program { get; set; }
 
-        public GCodeRuntimeException()
+        public GCodeException()
         {
         }
 
-        public GCodeRuntimeException(string message, string program, int line, int col)
+        public GCodeException(string message, string program, int line, int col)
             : base($"Error in {program}: Line {line}, col {col}. {message}")
         {
             Line = line;
@@ -53,17 +53,17 @@ namespace GCode.Utility
             Program = program;
         }
 
-        public GCodeRuntimeException(string message, string program, int line)
+        public GCodeException(string message, string program, int line)
             : base($"Error in {program}: Line {line}. {message}")
         {
         }
 
-        public GCodeRuntimeException(string message, string program, int line, int col, Exception inner)
+        public GCodeException(string message, string program, int line, int col, Exception inner)
             : base($"Error in {program}: Line {line}, col {col}. {message}", inner)
         {
         }
 
-        public GCodeRuntimeException(string message, string program, int line, Exception inner)
+        public GCodeException(string message, string program, int line, Exception inner)
             : base($"Error in {program}: Line {line}. {message}", inner)
         {
         }
