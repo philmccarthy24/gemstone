@@ -162,12 +162,13 @@ namespace GCode.Interpreter
                 // delegate to other rule handlers to carry out these actions
                 Visit(expr);
             }
-            else if (comment != null)
+
+            if (comment != null)
             {
                 // we're dealing with a comment. TRACE it out for a giggle.
                 Debug.WriteLine(comment.CTRL_OUT_TEXT().GetText());
+                // TODO: if an alarm has been raised, this is the text for the alarm
             }
-            else throw new GCodeException("Unexpected content encountered.", _stack.Peek().Name, context.Start.Line);
 
             return null;
         }
@@ -309,7 +310,16 @@ namespace GCode.Interpreter
             return result;
         }
 
-        // note this will collapse MachineVariable objects to double?s.
+        /// <summary>
+        /// Performs basic math operations. Operator precedence is described on p444 of the manual:
+        /// Order of evaluation should be
+        /// - Functions (SIN, COS etc) first
+        /// - then multiplication and division type operations
+        /// - then addition and subtraction type operations.
+        /// NOTE this handler will collapse MachineVariable objects to double?s.
+        /// </summary>
+        /// <param name="context"></param>
+        /// <returns></returns>
         public override object VisitArithmeticExpression([NotNull] FanucGCodeParser.ArithmeticExpressionContext context)
         {
             double? result = null;
@@ -319,15 +329,30 @@ namespace GCode.Interpreter
             {
                 // for Fanuc, the logic for deciding how arithmetic for undefined variables is handled is specified in the manual p383 para (b)
                 if (context.PLUS() != null)
+                {
                     result = operands.Left + operands.Right;
+                    //log.Debug($"Evaluating {operands.Left} + {operands.Right} to {result}.");
+                }
                 else if (context.MINUS() != null)
+                {
                     result = operands.Left - operands.Right;
+                    //log.Debug($"Evaluating {operands.Left} - {operands.Right} to {result}.");
+                }
                 else if (context.MULTIPLY() != null)
+                {
                     result = operands.Left * operands.Right;
+                    //log.Debug($"Evaluating {operands.Left} * {operands.Right} to {result}.");
+                }
                 else if (context.DIVIDE() != null)
+                {
                     result = operands.Left / operands.Right;
+                    //log.Debug($"Evaluating {operands.Left} / {operands.Right} to {result}.");
+                }
                 else if (context.MOD() != null)
+                {
                     result = operands.Left % operands.Right;
+                    //log.Debug($"Evaluating {operands.Left} MOD {operands.Right} to {result}.");
+                }
                 else throw new GCodeException("Unrecognised arithmetic expression type", _stack.Peek().Name, context.Start.Line);
             }
             return result;
@@ -341,7 +366,6 @@ namespace GCode.Interpreter
 
             // So we need to check that rhs directly resolves to a MachineVariable, and if mv.Value == null, then we set lhs to null.
             // otherwise if rhs is a double?, it means calculations have been done. Therefore if nullDbl == null, we set lhs to 0.0.
-            //.... worth some more thought and experimentation. how will resolving var reference expressions work etc
 
             // evaluate the right hand side
             var rhs = context.expr()[1];
@@ -417,7 +441,24 @@ namespace GCode.Interpreter
             return ncVar;
         }
 
-        // IMachineVariableTable implementation that allows lookup / setting of machine vars
+        /// <summary>
+        /// This node handler just forwards what the inner expression resolves to.
+        /// </summary>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        public override object VisitBracketedExpression([NotNull] FanucGCodeParser.BracketedExpressionContext context)
+        {
+            if (context.expr() != null)
+                return Visit(context.expr());
+            else
+                return base.VisitBracketedExpression(context);
+        }
+
+        /// <summary>
+        /// IMachineVariableTable implementation that allows lookup / setting of machine vars
+        /// </summary>
+        /// <param name="idx"></param>
+        /// <returns></returns>
         public double? this[uint idx]
         {
             get

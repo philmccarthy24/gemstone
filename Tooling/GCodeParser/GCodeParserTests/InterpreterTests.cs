@@ -14,6 +14,7 @@ namespace GCodeParserTests
     [TestFixture]
     public class FanucGCodeInterpreterTests
     {
+
         private FanucGCodeProgram LoadProgram(string text)
         {
             return new FanucGCodeProgram() { Content = text.Replace("\r", "") };
@@ -98,15 +99,19 @@ O9874(TestProg)
         }
 
         /// <summary>
-        /// Tests that the whole variable range is accessible. Also tests IF, GOTO, 
-        /// simple variable indirection and simple variable assignment
+        /// Tests that the whole variable range is accessible. Also tests IF-GOTO, 
+        /// IF-THEN, and GOTO statements, simple variable indirection, and simple variable assignment
         /// </summary>
         [Test]
-        public void TestFanucInterpreter_IfGotoAndWorkingVariableRange()
+        public void TestFanucInterpreter_ControlFlow_And_WorkingVariableRange()
         {
             var testProgram = LoadProgram(@"%
 O9874(TestProg)
-#33=1
+#33=#0
+(This line is just a simple test of IF-THEN)
+IF[#33EQ#0]THEN[#33=1]
+
+(Fill vars 1-33 with their index numbers)
 N10
 IF[#33GT33]GOTO20
 #[#33]=#33
@@ -114,6 +119,8 @@ IF[#33GT33]GOTO20
 GOTO10
 N20
 #33=33
+
+(Fill vars 100-199 with their index numbers)
 #199=100
 N30
 IF[#199GT199]GOTO40
@@ -122,6 +129,8 @@ IF[#199GT199]GOTO40
 GOTO30
 N40
 #199=199
+
+(Fill vars 500-999 with their index numbers)
 #999=500
 N50
 IF[#999GT999]GOTO60
@@ -192,39 +201,76 @@ O9874(TestProg)
             Assert.That(ex5.Line, Is.EqualTo(4));
         }
 
-        //TODO: write tests to test null handling of relational and arithmetic ops.
-        // write test to test null handling wrt var assignmnent (from expression vs direct from var)
-        // write test to prove operator precedence is correct.
-        
-        // write test to prove IF THEN, IF GOTO and GOTO are correct
-        // write test to prove IF with a non-relational condition expression barfs properly
-
-        /*
+        /// <summary>
+        /// Tests that the relational operators handle null values correctly
+        /// </summary>
         [Test]
-        public void TestFanucInterpreter_()
+        public void TestFanucInterpreter_RelationalOperators_HandleNullCorrectly()
         {
-            string testProgText = @"%
+            var testProgram = LoadProgram(@"%
 O9874(TestProg)
-N10
+#1=#0
+#2=1.
+#3=2.
+#4=0
 
-(Just a comment)
-IF[4.87GT2.91]GOTO30
-N20 (This is label 10)
-N30 (This is label 20)
-N40 (This is label 30)
-%";
-            testProgText = testProgText.Replace("\r", "");
+(All these should evaluate to true)
+IF[#1EQ#0]THEN[#4=[#4+1]]
+IF[#2EQ1]THEN[#4=[#4+1]]
+IF[#0NE#2]THEN[#4=[#4+1]]
+IF[#2NE3.2]THEN[#4=[#4+1]]
+IF[#3GT#2]THEN[#4=[#4+1]]
+IF[#3GE#2]THEN[#4=[#4+1]]
+IF[#1GE#0]THEN[#4=[#4+1]]
+IF[#2LT#3]THEN[#4=[#4+1]]
+IF[#2LE#3]THEN[#4=[#4+1]]
+IF[#1LE#0]THEN[#4=[#4+1]]
 
-            var testProgram = new FanucGCodeProgram() { Content = testProgText };
+(These should evaluate to false)
+IF[#1GT#0]THEN[#4=[#4+1]]
+IF[#0LT#2]THEN[#4=[#4+1]]
+%");
 
             IMachineToolRuntime runtime = new FanucMachineToolRuntime();
             IGCodeInterpreter interpreter = new FanucGCodeInterpreter(runtime);
 
             interpreter.RunProgram(testProgram);
 
-            //Assert.That(errors.Count, Is.GreaterThan(0));
+            Assert.That(interpreter[4], Is.EqualTo(10));
         }
-        */
+
+        /// <summary>
+        /// Tests that the relational operators handle null values correctly
+        /// </summary>
+        [Test]
+        public void TestFanucInterpreter_ArithmeticOperatorPrecedence()
+        {
+            var testProgram = LoadProgram(@"%
+O9874(TestProg)
+#1=1+2*3-4/4 (This should evaluate to 6)
+#2=1+[2*3]-[4/4]
+%");
+
+            IMachineToolRuntime runtime = new FanucMachineToolRuntime();
+            IGCodeInterpreter interpreter = new FanucGCodeInterpreter(runtime);
+
+            interpreter.RunProgram(testProgram);
+            
+            Assert.That(interpreter[1], Is.EqualTo(6));
+            Assert.That(interpreter[2], Is.EqualTo(6));
+
+            //TODO - This is failing. I have added NUnit 3 from Nuget to the test project and the parser
+            // project, in the hope of getting a trace of the operator call order to a log file.
+            // It's coming out as -0.75 which is weird. Should be 6.
+        }
+
+        //TODO: write tests to test null handling of arithmetic ops.
+        // write test to test null handling wrt var assignmnent (from expression vs direct from var)
+        // write test to prove operator precedence is correct.
+
+        // write test to prove IF with a non-relational condition expression barfs properly
+
+
 
     }
 }
