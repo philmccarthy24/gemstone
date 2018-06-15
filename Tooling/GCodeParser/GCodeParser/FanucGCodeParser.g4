@@ -1,5 +1,15 @@
 parser grammar FanucGCodeParser;
 
+/************************************************************************************
+* Fanuc GCode Parser Rules - (c) 2018 Phil McCarthy, MIT license.
+*
+* NOTE this is a (large) sub-set of the official Fanuc Grammar.
+*
+* There are a few keywords (WHILE DO END, AX, AXNUM, SETVN, BPRNT, DPRNT, POPEN, PCLOS)
+* currently not supported.
+*
+************************************************************************************/
+
 options { tokenVocab=FanucGCodeLexer; }
 
 // Is the program number optional for top level programs?
@@ -44,16 +54,16 @@ variable: HASH DIGITS
 		;
 
 expr: OPEN_BRACKET expr CLOSE_BRACKET								# BracketedExpression
-	| expr (MULTIPLY|DIVIDE) expr									# ArithmeticExpression
-	| expr MOD expr													# ArithmeticExpression
+	| BUILTIN_FUNCTION OPEN_BRACKET expr (COMMA expr)* CLOSE_BRACKET	# FunctionExpression
+	| expr (MULTIPLY|DIVIDE|MOD) expr									# ArithmeticExpression
 	| expr (PLUS|MINUS) expr										# ArithmeticExpression
 	| expr EQUALS expr												# AssignmentExpression
 	| expr RELATIONAL_OP expr										# RelationalExpression
 	| expr LOGICAL_OP expr											# LogicalExpression
-	| BUILTIN_FUNCTION OPEN_BRACKET expr (COMMA expr)* CLOSE_BRACKET	# FunctionExpression
 	| variable														# VariableExpression
 	| integer														# IntegerExpression
 	| real															# RealExpression
+	| (PLUS|MINUS) expr												# SignedExpression
 	;
 // need to add WHILE DO END, AX, AXNUM, SETVN, BPRNT, DPRNT, POPEN, PCLOS
 

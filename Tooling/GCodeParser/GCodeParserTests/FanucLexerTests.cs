@@ -10,7 +10,7 @@ using GCodeParser;
 namespace GCodeParserTests
 {
     [TestFixture]
-    public class LexerTests
+    public class FanucLexerTests
     {
 
         /// <summary>
@@ -19,7 +19,7 @@ namespace GCodeParserTests
         /// by the lexer
         /// </summary>
         [Test]
-        public void TestCommentLexicalMode()
+        public void TestFanucLexer_CommentLexicalMode()
         {
             var tokens = FanucGCodeScanner.Tokenise("N70 ( test N50 comment #_UI[9] also #104 IF THEN )\n");
             var test = tokens.ToList();
@@ -37,7 +37,7 @@ namespace GCodeParserTests
         }
 
         [Test]
-        public void TestSystemVarIdentifier()
+        public void TestFanucLexer_SystemVarIdentifier()
         {
             var testInput = @"%
 O9123(MyProg)
@@ -79,7 +79,7 @@ G01X[#5-20.5] Y[#_ALS[4] ]
         }
 
         [Test]
-        public void TestNumberInBrackets()
+        public void TestFanucLexer_NumberInBrackets()
         {
             var tokens = FanucGCodeScanner.Tokenise("G1X[#[100]]\n");
             var test = tokens.ToList();

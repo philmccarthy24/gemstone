@@ -35,6 +35,7 @@ namespace GCode.Utility
         public double? Right { get; set; }
     }
 
+    // TODO: I'd quite like to have a hierarchy of exceptions, eg GCodeParseException, GCodeRuntimeException, GCodeInvalidVariableException etc
     public class GCodeException : Exception
     {
         public int Line { get; set; }

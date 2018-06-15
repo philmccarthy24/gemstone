@@ -10,7 +10,7 @@ namespace GCodeParserTests
 {
 
     [TestFixture]
-    public class ParserTests
+    public class FanucParserTests
     {
 
         [Test]
@@ -30,7 +30,7 @@ namespace GCodeParserTests
         {
             var syntaxChecker = new FanucGCodeSyntaxChecker();
 
-            var testGCode = "G01X5Y#[#26-4]\n"; // if add '**' before newline, get errors about gcode prefix... ? also getting error about empty block. Parser grammar is not quite right.
+            var testGCode = "G01X5Y#[#26-4]\n";
 
             var errors = syntaxChecker.CheckSyntax(testGCode);
 

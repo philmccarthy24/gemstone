@@ -53,9 +53,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="InterpreterTests.cs" />
-    <Compile Include="LexerTests.cs" />
-    <Compile Include="ParserTests.cs" />
+    <Compile Include="FanucLexerTests.cs" />
+    <Compile Include="FanucParserTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SiemensLexerTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

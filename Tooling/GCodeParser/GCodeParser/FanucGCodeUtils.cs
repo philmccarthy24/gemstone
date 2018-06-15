@@ -8,6 +8,15 @@ using System.Diagnostics;
 
 namespace GCodeParser
 {
+
+    // TODO: Ruminations 15/06/18
+    // I think the intent of this is different to the core parser. I think for language syntax highlighting for VS plugin etc,
+    // this should be a very cut down list of general classifications, eg Keyword, BuiltinFunction, ArithmeticOperator, LogicalOperator etc.
+    // There still needs to be a syntax checker that returns tagged input text in error.
+    // The GCode.LanguageTools.Fanuc namespace should possibly be used to house these classes, keeping the generated lexer/parser in GCode.Parsing.Fanuc?
+    // and the interpreter in GCode.Interpreter.Fanuc.
+    // This seperates out the functionality and intent.
+
     // map from antlr token type constants here, so we have a public defined interface and are free to change the internals
     public enum FanucGCodeTokenTypes
     {

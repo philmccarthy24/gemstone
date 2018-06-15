@@ -65,6 +65,12 @@
     <Compile Include="FanucGCodeInterpreter.cs" />
     <Compile Include="GCodeUtility.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SiemensGCodeLexer.g4.cs">
+      <DependentUpon>SiemensGCodeLexer.g4</DependentUpon>
+    </Compile>
+    <Compile Include="SiemensGCodeParser.g4.cs">
+      <DependentUpon>SiemensGCodeParser.g4</DependentUpon>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
@@ -77,6 +83,14 @@
       <CustomToolNamespace>GCodeParser</CustomToolNamespace>
     </Antlr4>
     <None Include="packages.config" />
+    <Antlr4 Include="SiemensGCodeLexer.g4">
+      <Generator>MSBuild:Compile</Generator>
+      <CustomToolNamespace>GCodeParser</CustomToolNamespace>
+    </Antlr4>
+    <Antlr4 Include="SiemensGCodeParser.g4">
+      <Generator>MSBuild:Compile</Generator>
+      <CustomToolNamespace>GCodeParser</CustomToolNamespace>
+    </Antlr4>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
