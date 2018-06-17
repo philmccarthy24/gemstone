@@ -53,17 +53,18 @@ variable: HASH DIGITS
 		| OPEN_BRACKET HASH SYSTEMVAR_CONST_OR_COMMONVAR_IDENTIFIER (OPEN_BRACKET DIGITS CLOSE_BRACKET)? CLOSE_BRACKET
 		;
 
-expr: OPEN_BRACKET expr CLOSE_BRACKET								# BracketedExpression
-	| BUILTIN_FUNCTION OPEN_BRACKET expr (COMMA expr)* CLOSE_BRACKET	# FunctionExpression
-	| expr (MULTIPLY|DIVIDE|MOD) expr									# ArithmeticExpression
-	| expr (PLUS|MINUS) expr										# ArithmeticExpression
-	| expr EQUALS expr												# AssignmentExpression
-	| expr RELATIONAL_OP expr										# RelationalExpression
-	| expr LOGICAL_OP expr											# LogicalExpression
-	| variable														# VariableExpression
-	| integer														# IntegerExpression
-	| real															# RealExpression
-	| (PLUS|MINUS) expr												# SignedExpression
+expr: OPEN_BRACKET expr CLOSE_BRACKET													# BracketedExpression
+	| BUILTIN_FUNCTION OPEN_BRACKET expr (COMMA expr)* CLOSE_BRACKET					# FunctionExpression
+	| expr (MULTIPLY|DIVIDE|MOD) expr													# ArithmeticExpression
+	| expr (PLUS|MINUS) expr															# ArithmeticExpression
+	| expr EQUALS expr																	# AssignmentExpression
+	| expr RELATIONAL_OP expr															# RelationalExpression
+//	| OPEN_BRACKET expr CLOSE_BRACKET (LOGICAL_OP OPEN_BRACKET expr	CLOSE_BRACKET)+		# LogicalExpression // is this better than below?
+	| expr LOGICAL_OP expr			# LogicalExpression
+	| variable																			# VariableExpression
+	| integer																			# IntegerExpression
+	| real																				# RealExpression
+	| (PLUS|MINUS) expr																	# SignedExpression
 	;
 // need to add WHILE DO END, AX, AXNUM, SETVN, BPRNT, DPRNT, POPEN, PCLOS
 

@@ -258,15 +258,73 @@ O9874(TestProg)
             
             Assert.That(interpreter[1], Is.EqualTo(6));
             Assert.That(interpreter[2], Is.EqualTo(6));
-
-            //TODO - This is failing. I have added NUnit 3 from Nuget to the test project and the parser
-            // project, in the hope of getting a trace of the operator call order to a log file.
-            // It's coming out as -0.75 which is weird. Should be 6.
         }
 
-        //TODO: write tests to test null handling of arithmetic ops.
-        // write test to test null handling wrt var assignmnent (from expression vs direct from var)
-        // write test to prove operator precedence is correct.
+        [Test]
+        public void TestFanucInterpreter_ArithmeticOperators_HandleNullCorrectly()
+        {
+            var testProgram = LoadProgram(@"%
+O9874(TestProg)
+#1=#0
+#4=0
+
+(All these should evaluate to true)
+IF[[1+#0]EQ#0]THEN[#4=[#4+1]]
+IF[[#0-7]EQ#0]THEN[#4=[#4+1]]
+IF[[2*#1]EQ#0]THEN[#4=[#4+1]]
+IF[[#1/6]EQ#0]THEN[#4=[#4+1]]
+IF[[#1MOD#0]EQ#0]THEN[#4=[#4+1]]
+%");
+
+            IMachineToolRuntime runtime = new FanucMachineToolRuntime();
+            IGCodeInterpreter interpreter = new FanucGCodeInterpreter(runtime);
+
+            interpreter.RunProgram(testProgram);
+
+            Assert.That(interpreter[4], Is.EqualTo(5));
+        }
+
+        [Test]
+        public void TestFanucInterpreter_AssignmentOperator_HandlesNullCorrectly()
+        {
+            var testProgram = LoadProgram(@"%
+O9874(TestProg)
+#1=#0
+#2=#1
+#3=[#0-2]+4
+#4=#1*4
+%");
+
+            IMachineToolRuntime runtime = new FanucMachineToolRuntime();
+            IGCodeInterpreter interpreter = new FanucGCodeInterpreter(runtime);
+
+            interpreter.RunProgram(testProgram);
+
+            Assert.That(interpreter[2], Is.Null);
+            Assert.That(interpreter[3], Is.EqualTo(0));
+            Assert.That(interpreter[4], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void TestFanucInterpreter_NegationExpression()
+        {
+            var testProgram = LoadProgram(@"%
+O9874(TestProg)
+#1=4
+#2=-[#1-2]
+#3=+[3*#1]
+%");
+
+            IMachineToolRuntime runtime = new FanucMachineToolRuntime();
+            IGCodeInterpreter interpreter = new FanucGCodeInterpreter(runtime);
+
+            interpreter.RunProgram(testProgram);
+
+            Assert.That(interpreter[2], Is.EqualTo(-2));
+            Assert.That(interpreter[3], Is.EqualTo(12));
+        }
+
+        //TODO:
 
         // write test to prove IF with a non-relational condition expression barfs properly
 

@@ -358,6 +358,8 @@ namespace GCode.Interpreter
             return result;
         }
 
+        //TODO: ensure assignment can only happen as a standalone expression in a block, or in the THEN claue of an IF.
+        // eg G01X[5+[#3=8]] would currently be legal, and shouldn't be
         public override object VisitAssignmentExpression([NotNull] FanucGCodeParser.AssignmentExpressionContext context)
         {
             // p383 of the manual specifies that if #0 is assigned to a variable, either directly or via another variable (set to #0), 
@@ -373,13 +375,13 @@ namespace GCode.Interpreter
             double? evaluatedRhs;
             try
             {
-                if (resolvedRhs.GetType() == typeof(MachineVariable))
-                {
-                    evaluatedRhs = ((MachineVariable)resolvedRhs).Value; // NOTE this can evaluate to null, which is Ok
-                }
-                else if (resolvedRhs.IsNumeric())
+                if (resolvedRhs.IsNumericNotMachineVariable())
                 {
                     evaluatedRhs = resolvedRhs.NormaliseNumeric() ?? 0; // Must never evaluate to null
+                }
+                else if (resolvedRhs.GetType() == typeof(MachineVariable))
+                {
+                    evaluatedRhs = ((MachineVariable)resolvedRhs).Value; // NOTE this can evaluate to null, which is Ok
                 }
                 else throw new GCodeException("Assignment argument must be a machine variable or numeric", _stack.Peek().Name, rhs.Start.Line, rhs.Start.Column);
             }
@@ -452,6 +454,23 @@ namespace GCode.Interpreter
                 return Visit(context.expr());
             else
                 return base.VisitBracketedExpression(context);
+        }
+
+        public override object VisitSignedExpression([NotNull] FanucGCodeParser.SignedExpressionContext context)
+        {
+            if (context.expr() != null)
+            {
+                var evaluatedExpr = Visit(context.expr());
+                if (context.MINUS() != null && evaluatedExpr != null && evaluatedExpr.IsNumeric())
+                    evaluatedExpr = -(double)evaluatedExpr; // negate the evaluated expression
+                return evaluatedExpr;
+            }
+            else return base.VisitSignedExpression(context);
+        }
+
+        public override object VisitLogicalExpression([NotNull] FanucGCodeParser.LogicalExpressionContext context)
+        {
+            return base.VisitLogicalExpression(context);
         }
 
         /// <summary>

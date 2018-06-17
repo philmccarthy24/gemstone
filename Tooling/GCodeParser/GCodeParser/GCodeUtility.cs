@@ -11,20 +11,29 @@ namespace GCode.Utility
     {
         public static bool IsNumeric(this object objToTest)
         {
-            return (objToTest.GetType() == typeof(int) ||
-                objToTest.GetType() == typeof(double) ||
+            return (objToTest == null ||  // unfortunately setting a double? var to null, then returning into an object results in type erasure (just results in a null object)
                 objToTest.GetType() == typeof(double?) ||
+                objToTest.GetType() == typeof(int) ||
+                objToTest.GetType() == typeof(double) ||
                 objToTest.GetType() == typeof(MachineVariable));
+        }
+
+        public static bool IsNumericNotMachineVariable(this object objToTest)
+        {
+            return (objToTest == null ||  // unfortunately setting a double? var to null, then returning into an object results in type erasure (just results in a null object)
+                objToTest.GetType() == typeof(double?) ||
+                objToTest.GetType() == typeof(int) ||
+                objToTest.GetType() == typeof(double));
         }
 
         public static double? NormaliseNumeric(this object objToTest)
         {
             if (!objToTest.IsNumeric())
                 throw new Exception("Can't normalise non-numeric type");
-            if (objToTest.GetType() == typeof(MachineVariable))
-                return ((MachineVariable)objToTest).Value;
-            else if (objToTest == null)
+            if (objToTest == null)
                 return null;
+            else if (objToTest.GetType() == typeof(MachineVariable))
+                return ((MachineVariable)objToTest).Value;
             else return Convert.ToDouble(objToTest);
         }
     }
