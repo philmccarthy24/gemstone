@@ -46,6 +46,19 @@ namespace GCode.Interpreter
         public double Feedrate { get; set; }
     }
 
+    // because double? being null erases the type when passed to an object (ie you no longer get a null double?, but a null object),
+    // we can't distinguish between "an expression which doesn't yield a result" to "an expression which yields an invalid/unset/#0 value".
+    // we might be able to put additional constaints on the parser, eg have a conditional_expr that is only allowed in an IF, and only
+    // allow relational_expr expressions within this, which would (partially?) mitigate this.
+    // I think it's probably better to get the data model correct though - and distibguish between a null return and a null *value* return.
+    public class SubTreeEvaluation
+    {
+        private object _dataValue;
+        public Type DataType { get; set; }
+        public double? NumericValue { get; set; }
+        bool ConditionalValue { get; set; }
+    }
+
     public class FanucGCodeInterpreter : FanucGCodeParserBaseVisitor<object>, IGCodeInterpreter
     {
         private Stack<IGCodeProgram> _stack;

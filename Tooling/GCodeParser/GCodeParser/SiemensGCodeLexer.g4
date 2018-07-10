@@ -37,7 +37,7 @@ M_ADDR: 'M';
 // H_T ? Auxilliary function? p2-5
 
 // GCode addresses
-ADDRESS: [A-KMO-QS-Z]
+ADDRESS: [A-KMO-Z]		// this includes 'R' variable addresses - we can break this out if needs be
 	   | 'ACC' // Axial acceleration
 	   | 'ADIS' // rounding clearance for path functions
 	   | 'AX' // Axis value (variable axis programming) p2-10
@@ -61,7 +61,7 @@ ADDRESS: [A-KMO-QS-Z]
 	   | 'RP' // polar radius
 ;	
 
-R:	'R'; // arithmetic parameter. Also treated as an address. Probably want to keep the token separate for variable rules?
+//R:	'R'; // arithmetic parameter. Also treated as an address. Probably want to keep the token separate for variable rules?
 
 MEAS: 'MEAS';
 SUPA: 'SUPA';

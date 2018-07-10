@@ -10,7 +10,7 @@ options { tokenVocab=SiemensGCodeLexer; }
 
 
 
-comment: SEMICOLON COMMENT_TEXT EOF;
+comment: SEMICOLON COMMENT_TEXT;
 
 program: block+;
 
@@ -22,6 +22,8 @@ statement: gcode_word+
 		 | label
 		 | STOPRE
 		 | message
+		 | procdef
+		 | declaration
 		 ;
 // TODO: add lots more statements here
 
@@ -41,7 +43,26 @@ if: IF PARENTHESIS_LEFT expr PARENTHESIS_RIGHT goto;
 
 label: IDENTIFIER COLON;
 
-/////////// TODO: define variable here, DEF, PROC etc etc
+procdef: PROC L_WORD;
+
+declaration: DEF TYPE IDENTIFIER (SQUAREDBRACKET_OPEN expr SQUAREDBRACKET_CLOSE)?;
+
+/* not implemented yet:
+ELSE:		'ELSE';
+ENDIF:		'ENDIF';
+CASE:		'CASE';
+OF:			'OF';
+DEFAULT:	'DEFAULT';
+DELETE:		'DELETE';
+WRITE:		'WRITE';
+FOR:		'FOR';
+TO:			'TO';
+ENDFOR:		'ENDFOR';
+SAVE:		'SAVE';
+ENDPROC:	'ENDPROC';
+EXTERN:		'EXTERN';
+GETT:		'GETT';
+*/
 
 expr: PARENTHESIS_LEFT expr PARENTHESIS_RIGHT
 	| (BUILTIN_FUNCTION | IDENTIFIER) PARENTHESIS_LEFT expr (COMMA expr)* PARENTHESIS_RIGHT
@@ -50,7 +71,8 @@ expr: PARENTHESIS_LEFT expr PARENTHESIS_RIGHT
 	| expr EQUALS expr
 	| expr RELATIONAL_OP expr										
 	| expr LOGICAL_OP expr											
-//	| variable														
+//	| variable
+	| string
 	| integer														
 	| real															
 	| bool
